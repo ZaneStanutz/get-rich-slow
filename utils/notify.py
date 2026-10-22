@@ -23,7 +23,7 @@ SMTP_HOST = 'smtp.gmail.com'
 SMTP_PORT = 587
 NOTIFY_EMAIL_DEFAULT = 'stanutz.stanutz@gmail.com'
 
-SUMMARY_COLUMNS = ['ticker', 'price', 'dcf_value', 'margin_of_safety', 'fcf_growth_used', 'implied_growth', 'undervalued']
+SUMMARY_COLUMNS = ['ticker', 'price', 'dcf_value', 'margin_of_safety', 'fcf_growth_used', 'implied_growth', 'below_net_cash', 'undervalued']
 
 
 def build_summary_email(tickers_processed: int, results_count: int,

@@ -283,6 +283,8 @@ def get_fcf_growth_rate(stock: yf.Ticker) -> float:
 def get_net_debt(stock: yf.Ticker) -> float:
   """Calculate net debt (total debt - cash) from the latest balance sheet.
 
+  Debt-free companies often have an empty 'Total Debt' value, which counts as 0.
+
   Args:
       stock: the stock in question as a yf.Ticker object
 
@@ -290,12 +292,29 @@ def get_net_debt(stock: yf.Ticker) -> float:
       Net debt as a float. Negative means the company holds net cash.
   """
   balance_sheet = stock.balance_sheet
-  total_debt = balance_sheet.loc['Total Debt'].iloc[0] if 'Total Debt' in balance_sheet.index else 0.0
-  cash = balance_sheet.loc['Cash Cash Equivalents And Short Term Investments'].iloc[0] \
-    if 'Cash Cash Equivalents And Short Term Investments' in balance_sheet.index \
-    else balance_sheet.loc['Cash And Cash Equivalents'].iloc[0]
+  total_debt = yearly.get_latest_value(balance_sheet, 'Total Debt', default=0.0)
+  # prefer cash including short term investments, which many companies hold instead of plain cash
+  cash = yearly.get_latest_value(balance_sheet, 'Cash Cash Equivalents And Short Term Investments',
+                                 default=yearly.get_latest_value(balance_sheet, 'Cash And Cash Equivalents', default=0.0))
 
-  return float(total_debt) - float(cash)
+  return total_debt - cash
+
+
+def is_below_net_cash(stock: yf.Ticker) -> bool:
+  """Check if the market cap is lower than the company's cash minus all its debt.
+
+  The market then values the business itself at less than nothing. That is either
+  a deep bargain or a sign the cash isn't really available to shareholders
+  (trapped in another country, owned by a controlling parent, or misreported).
+
+  Args:
+      stock: the stock in question as a yf.Ticker object
+
+  Returns:
+      True if the stock trades below net cash.
+  """
+  net_cash = -get_net_debt(stock) * get_currency_factor(stock)
+  return get_market_cap(stock) < net_cash
 
 
 def get_earnings_history(stock: yf.Ticker) -> pd.Series:
@@ -447,7 +466,9 @@ def get_implied_growth(stock: yf.Ticker, discount_rate: float = DISCOUNT_RATE) -
 
   Returns:
       A floating point percentage, or None if the company has negative FCF or
-      the price implies growth outside IMPLIED_GROWTH_RANGE.
+      the price implies growth outside IMPLIED_GROWTH_RANGE. Stocks trading below
+      net cash (see is_below_net_cash) always return None, as no growth rate
+      can push the business value below zero.
   """
   base_fcf = get_base_fcf(stock)
 
@@ -569,5 +590,6 @@ def get_valuation(stock: yf.Ticker) -> dict:
     "margin_of_safety": margin_of_safety,
     "graham_number": get_graham_number(stock),
     "fcf_yield": get_fcf_yield(stock) if fcf_reliable else None,
+    "below_net_cash": is_below_net_cash(stock),
     "undervalued": margin_of_safety is not None and margin_of_safety >= MARGIN_OF_SAFETY_TARGET
   }
