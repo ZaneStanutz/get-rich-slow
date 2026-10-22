@@ -1,0 +1,13 @@
+.ipynb_checkpoints/
+CLAUDE.md
+DataTesting.ipynb
+__pycache__/
+all_us_stocks.csv
+env/
+getrich.log
+results/
+stock_analysis_backup.parquet
+yfinance.cache
+nasdaq_screener.csv
+nohup.out
+output.log
