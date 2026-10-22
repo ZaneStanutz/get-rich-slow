@@ -6,7 +6,11 @@
    Set these environment variables before running main.py:
      GMAIL_ADDRESS       the Gmail account sending the email
      GMAIL_APP_PASSWORD  the 16 character app password for that account
-     NOTIFY_EMAIL        (optional) recipient, defaults to NOTIFY_EMAIL_DEFAULT
+     NOTIFY_EMAIL        (optional) recipient, defaults to GMAIL_ADDRESS (email yourself)
+
+   Example (e.g. in ~/.zshrc):
+     export GMAIL_ADDRESS="you@gmail.com"
+     export GMAIL_APP_PASSWORD="abcd efgh ijkl mnop"
 '''
 import logging
 import os
@@ -21,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 SMTP_HOST = 'smtp.gmail.com'
 SMTP_PORT = 587
-NOTIFY_EMAIL_DEFAULT = 'stanutz.stanutz@gmail.com'
 
 SUMMARY_COLUMNS = ['ticker', 'price', 'dcf_value', 'margin_of_safety', 'fcf_growth_used', 'implied_growth', 'below_net_cash', 'undervalued']
 
@@ -120,7 +123,8 @@ def send_email(message: EmailMessage, attachment_path: Optional[str] = None) -> 
     return False
 
   message['From'] = sender
-  message['To'] = os.environ.get('NOTIFY_EMAIL', NOTIFY_EMAIL_DEFAULT)
+  # without a separate recipient the summary goes to the sending account itself
+  message['To'] = os.environ.get('NOTIFY_EMAIL') or sender
 
   if attachment_path and os.path.exists(attachment_path):
     with open(attachment_path, 'rb') as attachment:
