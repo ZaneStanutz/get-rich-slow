@@ -20,13 +20,15 @@ from typing import Optional
 
 import pandas as pd
 
+from utils.safety import MIN_SAFETY_SCORE, get_safest_undervalued, build_safest_buys_analysis
+
 
 logger = logging.getLogger(__name__)
 
 SMTP_HOST = 'smtp.gmail.com'
 SMTP_PORT = 587
 
-SUMMARY_COLUMNS = ['ticker', 'price', 'dcf_value', 'margin_of_safety', 'fcf_growth_used', 'implied_growth', 'below_net_cash', 'undervalued']
+SUMMARY_COLUMNS = ['ticker', 'safety_score', 'price', 'dcf_value', 'margin_of_safety', 'fcf_growth_used', 'implied_growth', 'below_net_cash', 'undervalued']
 
 
 def build_summary_email(tickers_processed: int, results_count: int,
@@ -43,9 +45,11 @@ def build_summary_email(tickers_processed: int, results_count: int,
       An EmailMessage without sender/recipient set.
   """
   passed = 0 if filtered_df is None else len(filtered_df)
-  undervalued = 0
+  undervalued_df = None
   if filtered_df is not None and 'undervalued' in filtered_df.columns:
-    undervalued = int(filtered_df['undervalued'].sum())
+    undervalued_df = filtered_df[filtered_df['undervalued'].eq(True)]
+  undervalued = 0 if undervalued_df is None else len(undervalued_df)
+  safest_df = get_safest_undervalued(undervalued_df) if undervalued else None
 
   lines = [
     f"Stock scrape {timestamp} is complete.",
@@ -59,10 +63,18 @@ def build_summary_email(tickers_processed: int, results_count: int,
 
   if results_count == 0:
     lines.append("No results were returned. Check getrich.log, this is often caused by rate limiting.")
+  elif undervalued and safest_df.empty:
+    lines.append(f"None of the undervalued stocks reached the minimum safety score of {MIN_SAFETY_SCORE}.")
+  elif undervalued:
+    columns = [column for column in SUMMARY_COLUMNS if column in safest_df.columns]
+    lines.append(f"The {len(safest_df)} safest undervalued stocks (safety score {MIN_SAFETY_SCORE}+), most undervalued first.")
+    lines.append("Safety ranks balance sheet, returns, country risk and how much growth the price assumes.")
+    lines.append("")
+    lines.append(safest_df[columns].to_string(index=False))
+    lines.append("")
+    lines += build_safest_buys_analysis(safest_df)
   elif passed:
-    columns = [column for column in SUMMARY_COLUMNS if column in filtered_df.columns]
-    lines.append("Stocks passing the screen:")
-    lines.append(filtered_df[columns].to_string(index=False))
+    lines.append("No stocks passing the screen met the margin of safety target.")
 
   lines += ["", f"Results are saved under results/ with timestamp {timestamp}."]
 
